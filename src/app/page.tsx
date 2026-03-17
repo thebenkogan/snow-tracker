@@ -205,7 +205,7 @@ export default function Home() {
 
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="mb-6">
-          <div className="flex gap-3 overflow-x-auto pb-2">
+          <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2">
             {stations.map((station) => {
               const hasSelection = selectedDishes.some(
                 (d) => d.stationId === station.id,
@@ -216,7 +216,7 @@ export default function Home() {
                 <button
                   key={station.id}
                   onClick={() => setSelectedStationId(station.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full whitespace-nowrap transition-colors ${
+                  className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-full whitespace-nowrap transition-colors text-xs sm:text-sm shrink-0 ${
                     isSelected
                       ? "bg-green-600 text-white"
                       : hasSelection
@@ -228,7 +228,7 @@ export default function Home() {
                     <img
                       src={station.imageUrl}
                       alt={station.name}
-                      className="w-6 h-6 rounded object-contain bg-white"
+                      className="w-4 h-4 sm:w-5 sm:h-5 rounded object-contain bg-white"
                     />
                   )}
                   <span className="font-medium">{station.name}</span>
@@ -322,7 +322,7 @@ export default function Home() {
             </div>
 
             {selectedDishes.length > 0 && (
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="bg-green-50 rounded-lg px-4 py-2">
                   <span className="text-green-800 font-medium">
                     {selectedDishes.length} selected across{" "}
@@ -332,7 +332,7 @@ export default function Home() {
                 </div>
                 <button
                   onClick={() => setView("capture")}
-                  className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 flex items-center gap-2"
+                  className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 flex items-center gap-2 w-full sm:w-auto justify-center"
                 >
                   Continue <ChevronRight className="w-4 h-4" />
                 </button>
