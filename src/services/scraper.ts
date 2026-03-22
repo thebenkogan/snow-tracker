@@ -15,20 +15,18 @@ function decodeHtmlEntities(text: string): string {
 }
 
 export async function fetchAllMenus(stationIds: string[]): Promise<Station[]> {
-  const stations: Station[] = [];
-
-  for (const id of stationIds) {
-    try {
-      const station = await fetchMenu(id);
-      if (station) {
-        stations.push(station);
+  const results = await Promise.all(
+    stationIds.map(async (id) => {
+      try {
+        return await fetchMenu(id);
+      } catch (error) {
+        console.error(`Failed to fetch menu for ${id}:`, error);
+        return null;
       }
-    } catch (error) {
-      console.error(`Failed to fetch menu for ${id}:`, error);
-    }
-  }
+    })
+  );
 
-  return stations;
+  return results.filter((station): station is Station => station !== null);
 }
 
 export async function fetchMenu(stationId: string): Promise<Station | null> {
