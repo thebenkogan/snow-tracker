@@ -1,5 +1,5 @@
 import { Station, DayMenu, Dish } from "@/types";
-import { STATION_IMAGES } from "@/utils/meal";
+import { STATION_IMAGES } from "@/constants/stations";
 
 const BASE_URL = "https://eat.sifted.co/meals";
 

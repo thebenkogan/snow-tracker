@@ -13,8 +13,8 @@ import {
 import {
   generateMealPrompt,
   formatSelectedDishesForDisplay,
-  STATION_IMAGES,
 } from "@/utils/meal";
+import { STATION_IMAGES } from "@/constants/stations";
 
 type View = "select" | "capture";
 

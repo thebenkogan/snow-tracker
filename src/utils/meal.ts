@@ -1,6 +1,9 @@
+import { STATION_IMAGES } from "@/constants/stations";
+
 export interface SelectedDish {
   stationId: string;
   stationName: string;
+  stationImageUrl?: string;
   name: string;
   ingredients: string[];
 }
@@ -52,11 +55,3 @@ export function formatSelectedDishesForDisplay(
     dishName: d.name,
   }));
 }
-
-export const STATION_IMAGES: Record<string, string> = {
-  "659a82e0-6f43-432e-acf9-af733a7e1ef6": "https://images.sifted-dev.co/brands/pure.svg",
-  "cdc9288e-8e59-43d9-a69d-404b8a936039": "https://images.sifted-dev.co/brands/RotatingPlate.svg",
-  "7b143ea2-0e69-4a54-95ff-e07383ee664d": "https://images.sifted-dev.co/brands/WoknTandoor.svg",
-  "e9699fc9-3bc1-4d04-be64-68ae4865b39a": "https://images.sifted-dev.co/brands/SweetSpot.svg",
-  "15b2a5bb-da9f-43a9-808e-ffeb47ca040a": "https://images.sifted-dev.co/brands/WrapCulture.svg",
-};
