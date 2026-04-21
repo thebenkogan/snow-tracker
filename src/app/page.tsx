@@ -35,6 +35,7 @@ export default function Home() {
   >([]);
   const [imageUrl, setImageUrl] = useState<string>("");
   const [imageBase64, setImageBase64] = useState<string>("");
+  const [imageMimeType, setImageMimeType] = useState<string>("image/jpeg");
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzingVerb, setAnalyzingVerb] = useState("Analyzing");
   const [macros, setMacros] = useState<Macros | null>(null);
@@ -138,9 +139,13 @@ export default function Home() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64 = (reader.result as string).split(",")[1];
+        const result = reader.result as string;
+        const base64 = result.split(",")[1];
+        const mimeMatch = result.match(/data:([^;]+);/);
+        const mimeType = mimeMatch ? mimeMatch[1] : file.type || "image/jpeg";
         setImageBase64(base64);
-        setImageUrl(reader.result as string);
+        setImageMimeType(mimeType);
+        setImageUrl(result);
       };
       reader.readAsDataURL(file);
     }
@@ -165,7 +170,7 @@ export default function Home() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64, selectedDishes, notes }),
+        body: JSON.stringify({ imageBase64, imageMimeType, selectedDishes, notes }),
       });
 
       const data = await res.json();
@@ -186,6 +191,7 @@ export default function Home() {
     setSelectedDishes([]);
     setImageUrl("");
     setImageBase64("");
+    setImageMimeType("image/jpeg");
     setMacros(null);
     setNotes("");
     setNoteIndex(0);

@@ -82,6 +82,7 @@ async function runAnalysis(
 
 export async function analyzeMealWithGemini(
   imageBase64: string,
+  imageMimeType: string,
   selectedDishes: Array<{
     stationId: string;
     stationName: string;
@@ -104,7 +105,7 @@ export async function analyzeMealWithGemini(
   const imagePart: Part = {
     inlineData: {
       data: imageBase64,
-      mimeType: "image/jpeg",
+      mimeType: imageMimeType || "image/jpeg",
     },
   };
 
@@ -112,6 +113,7 @@ export async function analyzeMealWithGemini(
     model: "gemini-2.5-flash",
     prompt,
     imageSize: `${Math.round(imageBase64.length / 1024)}KB`,
+    mimeType: imageMimeType,
   });
 
   const results = await Promise.all([

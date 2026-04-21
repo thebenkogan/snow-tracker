@@ -4,7 +4,7 @@ import { analyzeMealWithGemini } from "@/services/gemini";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { imageBase64, selectedDishes, notes } = body;
+    const { imageBase64, imageMimeType, selectedDishes, notes } = body;
 
     if (!selectedDishes || !Array.isArray(selectedDishes)) {
       return NextResponse.json(
@@ -20,7 +20,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const macros = await analyzeMealWithGemini(imageBase64, selectedDishes, notes);
+    const macros = await analyzeMealWithGemini(
+      imageBase64,
+      imageMimeType,
+      selectedDishes,
+      notes,
+    );
 
     return NextResponse.json(macros);
   } catch (error) {
