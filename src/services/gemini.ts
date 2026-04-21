@@ -9,6 +9,30 @@ import { generateMealPrompt } from "@/utils/meal";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
+const NUM_TRIALS = 3;
+
+const MODEL_WEIGHTS = [
+  { model: "gemini-3-flash-preview", weight: 35 },
+  { model: "gemini-2.5-flash", weight: 35 },
+  { model: "gemini-3.1-flash-lite-preview", weight: 15 },
+  { model: "gemini-2.5-flash-lite", weight: 15 },
+];
+
+function selectWeightedModels(count: number): string[] {
+  const weightedList: string[] = [];
+  for (const { model, weight } of MODEL_WEIGHTS) {
+    for (let i = 0; i < weight; i++) {
+      weightedList.push(model);
+    }
+  }
+  const selected: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const randIndex = Math.floor(Math.random() * weightedList.length);
+    selected.push(weightedList[randIndex]);
+  }
+  return selected;
+}
+
 const systemInstruction = `You are a nutrional expert. You will be given a photo of a meal along with a list of 
 ingredients and an optional note. The meal is from a work place food court with various stations. Each ingredient is 
 grouped by the station it came from. Please respond in JSON format with the macronutrients of the meal, including
@@ -49,13 +73,30 @@ interface RunResult {
   carbs: number;
   fat: number;
   notes: string;
+  modelUsed: string;
 }
 
 async function runAnalysis(
-  model: ReturnType<typeof genAI.getGenerativeModel>,
+  modelName: string,
   prompt: string,
   imagePart: Part,
 ): Promise<RunResult | null> {
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    systemInstruction,
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: nutritionSchema,
+    },
+  });
+
+  console.log("[GEMINI] Request:", {
+    model: modelName,
+    prompt,
+    imageSize: `${Math.round(imagePart.inlineData!.data.length / 1024)}KB`,
+    mimeType: imagePart.inlineData!.mimeType,
+  });
+
   try {
     const result = await model.generateContent([prompt, imagePart]);
     const response = result.response.text();
@@ -71,6 +112,7 @@ async function runAnalysis(
         carbs: Math.round(parsed.carbs || 0),
         fat: Math.round(parsed.fats || 0),
         notes: parsed.notes || "",
+        modelUsed: modelName,
       };
     }
     return null;
@@ -91,15 +133,6 @@ export async function analyzeMealWithGemini(
   }>,
   notes?: string,
 ): Promise<Macros> {
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
-    systemInstruction,
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: nutritionSchema,
-    },
-  });
-
   const prompt = generateMealPrompt(selectedDishes, notes);
 
   const imagePart: Part = {
@@ -109,18 +142,11 @@ export async function analyzeMealWithGemini(
     },
   };
 
-  console.log("[GEMINI] Request:", {
-    model: "gemini-2.5-flash",
-    prompt,
-    imageSize: `${Math.round(imageBase64.length / 1024)}KB`,
-    mimeType: imageMimeType,
-  });
-
-  const results = await Promise.all([
-    runAnalysis(model, prompt, imagePart),
-    runAnalysis(model, prompt, imagePart),
-    runAnalysis(model, prompt, imagePart),
-  ]);
+  const results = await Promise.all(
+    selectWeightedModels(NUM_TRIALS).map((modelName) =>
+      runAnalysis(modelName, prompt, imagePart),
+    ),
+  );
 
   const successfulRuns = results.filter((r): r is RunResult => r !== null);
 
@@ -139,12 +165,15 @@ export async function analyzeMealWithGemini(
   const avgFat =
     successfulRuns.reduce((sum, r) => sum + r.fat, 0) / successfulRuns.length;
 
-  return {
+   return {
     calories: Math.round(avgCalories),
     protein: Math.round(avgProtein),
     carbs: Math.round(avgCarbs),
     fat: Math.round(avgFat),
-    notes: successfulRuns.map((r) => r.notes).join("|||"),
+    notes: successfulRuns.map((r) => ({
+      note: r.notes,
+      modelUsed: r.modelUsed,
+    })),
     runCount: successfulRuns.length,
   };
 }
@@ -155,7 +184,7 @@ function defaultMacros(): Macros {
     protein: 0,
     carbs: 0,
     fat: 0,
-    notes: "",
+    notes: [],
     runCount: 0,
   };
 }

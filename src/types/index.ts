@@ -34,11 +34,16 @@ export interface MealLog {
   createdAt: string;
 }
 
+export interface NoteEntry {
+  note: string;
+  modelUsed: string;
+}
+
 export interface Macros {
   calories: number;
   protein: number;
   carbs: number;
   fat: number;
-  notes: string;
+  notes: NoteEntry[];
   runCount: number;
 }

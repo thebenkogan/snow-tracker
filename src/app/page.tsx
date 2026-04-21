@@ -204,9 +204,9 @@ export default function Home() {
     ? getCurrentDayMenu(selectedStation)
     : null;
 
-  const allNotes = macros?.notes?.split("|||") || [];
-  const noteCount = allNotes.length;
-  const currentNote = noteCount > 0 ? allNotes[noteIndex] || "" : "";
+  const parsedNotes = macros?.notes || [];
+  const noteCount = parsedNotes.length;
+  const currentParsedNote = noteCount > 0 ? parsedNotes[noteIndex] : null;
 
   const getSelectedDishesForDisplay = () => {
     return formatSelectedDishesForDisplay(selectedDishes);
@@ -476,6 +476,11 @@ export default function Home() {
                         (avg of {macros.runCount} runs)
                       </span>
                     </h3>
+                    {parsedNotes.length > 0 && (
+                      <p className="text-xs text-green-700 mb-2">
+                        Models: {parsedNotes.map((n) => n.modelUsed).join(", ")}
+                      </p>
+                    )}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-white p-3 rounded-lg text-center">
                         <p className="text-2xl font-bold text-gray-800">
@@ -531,15 +536,23 @@ export default function Home() {
                           </div>
                         </div>
                         <p className="text-sm text-green-800 bg-white p-2 rounded">
-                          {currentNote}
+                          {currentParsedNote?.note}
+                          {currentParsedNote && (
+                            <span className="block text-xs text-green-600 mt-1">
+                              ({currentParsedNote.modelUsed})
+                            </span>
+                          )}
                         </p>
                       </div>
                     )}
-                    {macros.notes && macros.runCount === 1 && (
+                    {parsedNotes.length === 1 && (
                       <div className="mt-3">
                         <span className="text-xs text-green-700">Notes</span>
                         <p className="text-sm text-green-800 bg-white p-2 rounded">
-                          {macros.notes}
+                          {parsedNotes[0].note}
+                          <span className="block text-xs text-green-600 mt-1">
+                            ({parsedNotes[0].modelUsed})
+                          </span>
                         </p>
                       </div>
                     )}
