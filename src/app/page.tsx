@@ -23,19 +23,44 @@ export default function Home() {
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStationId, setSelectedStationId] = useState<string>("");
-  const [selectedDishes, setSelectedDishes] = useState<
-    { stationId: string; name: string; ingredients: string[] }[]
+const [selectedDishes, setSelectedDishes] = useState<
+    { stationId: string; stationName: string; name: string; ingredients: string[] }[]
   >([]);
   const [imageUrl, setImageUrl] = useState<string>("");
   const [imageBase64, setImageBase64] = useState<string>("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [analyzingVerb, setAnalyzingVerb] = useState("Analyzing");
   const [macros, setMacros] = useState<Macros | null>(null);
   const [copied, setCopied] = useState(false);
   const [notes, setNotes] = useState("");
 
+  const verbs = [
+    "Analyzing",
+    "Crunching numbers",
+    "Counting carbs",
+    "Measuring protein",
+    "Calculating calories",
+    "Scanning ingredients",
+    "Computing macros",
+    "Evaluating nutrition",
+    "Assessing portions",
+    "Processing meal",
+  ];
+
   useEffect(() => {
     loadMenus();
   }, []);
+
+  useEffect(() => {
+    if (!analyzing) {
+      setAnalyzingVerb("Analyzing");
+      return;
+    }
+    const interval = setInterval(() => {
+      setAnalyzingVerb(verbs[Math.floor(Math.random() * verbs.length)]);
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [analyzing]);
 
   const loadMenus = async () => {
     setLoading(true);
@@ -75,6 +100,8 @@ export default function Home() {
     stationId: string,
     dish: { name: string; ingredients: string[] },
   ) => {
+    const station = stations.find((s) => s.id === stationId);
+    const stationName = station?.name || "";
     setSelectedDishes((prev) => {
       const exists = prev.find(
         (d) => d.stationId === stationId && d.name === dish.name,
@@ -84,7 +111,7 @@ export default function Home() {
           (d) => !(d.stationId === stationId && d.name === dish.name),
         );
       }
-      return [...prev, { stationId, ...dish }];
+      return [...prev, { stationId, stationName, ...dish }];
     });
   };
 
@@ -108,17 +135,7 @@ export default function Home() {
   };
 
   const handleCopyDescription = () => {
-    console.log("selectedDishes:", selectedDishes);
-    const dishesWithNames = selectedDishes.map((d) => {
-      const station = stations.find((s) => s.id === d.stationId);
-      return {
-        stationId: d.stationId,
-        stationName: station?.name || "",
-        name: d.name,
-        ingredients: d.ingredients,
-      };
-    });
-    const description = generateMealPrompt(dishesWithNames, notes);
+    const description = generateMealPrompt(selectedDishes, notes);
     navigator.clipboard.writeText(description);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -130,7 +147,6 @@ export default function Home() {
       alert("Please add a photo first");
       return;
     }
-
     setAnalyzing(true);
     try {
       const res = await fetch("/api/analyze", {
@@ -168,17 +184,7 @@ export default function Home() {
     : null;
 
   const getSelectedDishesForDisplay = () => {
-    return formatSelectedDishesForDisplay(
-      selectedDishes.map((d) => {
-        const station = stations.find((s) => s.id === d.stationId);
-        return {
-          stationId: d.stationId,
-          stationName: station?.name || "",
-          name: d.name,
-          ingredients: d.ingredients,
-        };
-      }),
-    );
+    return formatSelectedDishesForDisplay(selectedDishes);
   };
 
   if (loading) {
@@ -427,7 +433,7 @@ export default function Home() {
 
                 <button
                   onClick={handleCopyDescription}
-                  className="w-full py-3 rounded-lg font-medium bg-gray-800 text-white hover:bg-gray-900 flex items-center justify-center gap-2"
+                  className="w-full py-3 rounded-lg font-medium bg-gray-800 text-white hover:bg-gray-900 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {copied ? (
                     <Check className="w-4 h-4" />
@@ -469,19 +475,23 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
+                ) : analyzing ? (
+                  <div className="w-full py-3 rounded-lg font-medium bg-gradient-to-r from-cyan-500 to-blue-500 text-white flex items-center justify-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    {analyzingVerb}...
+                  </div>
                 ) : (
                   <button
                     onClick={handleAnalyze}
-                    disabled={true}
-                    className="w-full py-3 rounded-lg font-medium bg-gradient-to-r from-cyan-500 to-blue-500 text-white cursor-not-allowed opacity-80"
+                    className="w-full py-3 rounded-lg font-medium bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:opacity-90 cursor-pointer"
                   >
-                    AI Analysis Coming Soon!
+                    AI Analysis
                   </button>
                 )}
 
                 <button
                   onClick={handleReset}
-                  className="w-full py-3 text-gray-500 hover:text-gray-700"
+                  className="w-full py-3 text-gray-500 hover:text-gray-700 cursor-pointer"
                 >
                   Start over
                 </button>
