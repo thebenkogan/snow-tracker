@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Station, DayMenu, Macros } from "@/types";
 import {
   CheckSquare,
@@ -9,6 +9,8 @@ import {
   ChevronRight,
   Copy,
   Check,
+  ChevronLeft,
+  ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 import {
   generateMealPrompt,
@@ -23,8 +25,13 @@ export default function Home() {
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStationId, setSelectedStationId] = useState<string>("");
-const [selectedDishes, setSelectedDishes] = useState<
-    { stationId: string; stationName: string; name: string; ingredients: string[] }[]
+  const [selectedDishes, setSelectedDishes] = useState<
+    {
+      stationId: string;
+      stationName: string;
+      name: string;
+      ingredients: string[];
+    }[]
   >([]);
   const [imageUrl, setImageUrl] = useState<string>("");
   const [imageBase64, setImageBase64] = useState<string>("");
@@ -33,19 +40,23 @@ const [selectedDishes, setSelectedDishes] = useState<
   const [macros, setMacros] = useState<Macros | null>(null);
   const [copied, setCopied] = useState(false);
   const [notes, setNotes] = useState("");
+  const [noteIndex, setNoteIndex] = useState(0);
 
-  const verbs = [
-    "Analyzing",
-    "Crunching numbers",
-    "Counting carbs",
-    "Measuring protein",
-    "Calculating calories",
-    "Scanning ingredients",
-    "Computing macros",
-    "Evaluating nutrition",
-    "Assessing portions",
-    "Processing meal",
-  ];
+  const verbs = useMemo(
+    () => [
+      "Analyzing",
+      "Crunching numbers",
+      "Counting carbs",
+      "Measuring protein",
+      "Calculating calories",
+      "Scanning ingredients",
+      "Computing macros",
+      "Evaluating nutrition",
+      "Assessing portions",
+      "Processing meal",
+    ],
+    [],
+  );
 
   useEffect(() => {
     loadMenus();
@@ -60,7 +71,7 @@ const [selectedDishes, setSelectedDishes] = useState<
       setAnalyzingVerb(verbs[Math.floor(Math.random() * verbs.length)]);
     }, 1500);
     return () => clearInterval(interval);
-  }, [analyzing]);
+  }, [analyzing, verbs]);
 
   const loadMenus = async () => {
     setLoading(true);
@@ -175,6 +186,7 @@ const [selectedDishes, setSelectedDishes] = useState<
     setImageBase64("");
     setMacros(null);
     setNotes("");
+    setNoteIndex(0);
     setView("select");
   };
 
@@ -182,6 +194,10 @@ const [selectedDishes, setSelectedDishes] = useState<
   const currentMenu = selectedStation
     ? getCurrentDayMenu(selectedStation)
     : null;
+
+  const allNotes = macros?.notes?.split("|||") || [];
+  const noteCount = allNotes.length;
+  const currentNote = noteCount > 0 ? allNotes[noteIndex] || "" : "";
 
   const getSelectedDishesForDisplay = () => {
     return formatSelectedDishesForDisplay(selectedDishes);
@@ -447,6 +463,9 @@ const [selectedDishes, setSelectedDishes] = useState<
                   <div className="bg-green-50 rounded-lg p-4">
                     <h3 className="font-bold text-green-800 mb-3">
                       Estimated Macros
+                      <span className="text-xs font-normal text-green-600 ml-2">
+                        (avg of {macros.runCount} runs)
+                      </span>
                     </h3>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-white p-3 rounded-lg text-center">
@@ -474,6 +493,47 @@ const [selectedDishes, setSelectedDishes] = useState<
                         <p className="text-xs text-gray-500">Fat</p>
                       </div>
                     </div>
+                    {macros.notes && macros.runCount > 1 && (
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-green-700">Notes</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() =>
+                                setNoteIndex((prev) =>
+                                  prev > 0 ? prev - 1 : noteCount - 1,
+                                )
+                              }
+                              className="p-1 rounded hover:bg-green-100"
+                            >
+                              <ChevronLeft className="w-4 h-4 text-green-700" />
+                            </button>
+                            <span className="text-xs text-green-600">
+                              {noteIndex + 1}/{noteCount}
+                            </span>
+                            <button
+                              onClick={() =>
+                                setNoteIndex((prev) => (prev + 1) % noteCount)
+                              }
+                              className="p-1 rounded hover:bg-green-100"
+                            >
+                              <ChevronRightIcon className="w-4 h-4 text-green-700" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-sm text-green-800 bg-white p-2 rounded">
+                          {currentNote}
+                        </p>
+                      </div>
+                    )}
+                    {macros.notes && macros.runCount === 1 && (
+                      <div className="mt-3">
+                        <span className="text-xs text-green-700">Notes</span>
+                        <p className="text-sm text-green-800 bg-white p-2 rounded">
+                          {macros.notes}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : analyzing ? (
                   <div className="w-full py-3 rounded-lg font-medium bg-gradient-to-r from-cyan-500 to-blue-500 text-white flex items-center justify-center gap-2">
