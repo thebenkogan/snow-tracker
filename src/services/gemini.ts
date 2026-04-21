@@ -36,7 +36,8 @@ const nutritionSchema = {
     },
     notes: {
       type: SchemaType.STRING,
-      description: "Any additional information, assumptions made, or notes for the user",
+      description:
+        "Any additional information, assumptions made, or notes for the user",
     },
   } as Record<string, Schema>,
   required: ["calories", "fats", "carbs", "protein", "notes"],
@@ -126,9 +127,11 @@ export async function analyzeMealWithGemini(
   }
 
   const avgCalories =
-    successfulRuns.reduce((sum, r) => sum + r.calories, 0) / successfulRuns.length;
+    successfulRuns.reduce((sum, r) => sum + r.calories, 0) /
+    successfulRuns.length;
   const avgProtein =
-    successfulRuns.reduce((sum, r) => sum + r.protein, 0) / successfulRuns.length;
+    successfulRuns.reduce((sum, r) => sum + r.protein, 0) /
+    successfulRuns.length;
   const avgCarbs =
     successfulRuns.reduce((sum, r) => sum + r.carbs, 0) / successfulRuns.length;
   const avgFat =

@@ -41,6 +41,7 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [notes, setNotes] = useState("");
   const [noteIndex, setNoteIndex] = useState(0);
+  const [analysisFailed, setAnalysisFailed] = useState(false);
 
   const verbs = useMemo(
     () => [
@@ -158,6 +159,7 @@ export default function Home() {
       alert("Please add a photo first");
       return;
     }
+    setAnalysisFailed(false);
     setAnalyzing(true);
     try {
       const res = await fetch("/api/analyze", {
@@ -167,14 +169,14 @@ export default function Home() {
       });
 
       const data = await res.json();
-      if (data.error) {
-        alert(data.error);
+      if (data.error || data.runCount === 0) {
+        setAnalysisFailed(true);
       } else {
         setMacros(data);
       }
     } catch (error) {
       console.error("Error analyzing:", error);
-      alert("Failed to analyze meal");
+      setAnalysisFailed(true);
     } finally {
       setAnalyzing(false);
     }
@@ -187,6 +189,7 @@ export default function Home() {
     setMacros(null);
     setNotes("");
     setNoteIndex(0);
+    setAnalysisFailed(false);
     setView("select");
   };
 
@@ -539,6 +542,20 @@ export default function Home() {
                   <div className="w-full py-3 rounded-lg font-medium bg-gradient-to-r from-cyan-500 to-blue-500 text-white flex items-center justify-center gap-2">
                     <Loader2 className="w-5 h-5 animate-spin" />
                     {analyzingVerb}...
+                  </div>
+                ) : analysisFailed ? (
+                  <div className="space-y-3">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                      <p className="text-red-800 font-medium">
+                        Analysis failed. Please try again.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleAnalyze}
+                      className="w-full py-3 rounded-lg font-medium bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:opacity-90 cursor-pointer"
+                    >
+                      Try Again
+                    </button>
                   </div>
                 ) : (
                   <button
