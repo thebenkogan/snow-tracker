@@ -134,15 +134,47 @@ export default function Home() {
     );
   };
 
+  const compressImage = (
+    dataUrl: string,
+    maxDim = 1024,
+    quality = 0.8,
+  ): Promise<{ base64: string; mimeType: string }> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let { width, height } = img;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = (height / width) * maxDim;
+            width = maxDim;
+          } else {
+            width = (width / height) * maxDim;
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        const compressed = canvas.toDataURL("image/jpeg", quality);
+        const base64 = compressed.split(",")[1];
+        resolve({ base64, mimeType: "image/jpeg" });
+      };
+      img.src = dataUrl;
+    });
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         const result = reader.result as string;
-        const base64 = result.split(",")[1];
-        const mimeMatch = result.match(/data:([^;]+);/);
-        const mimeType = mimeMatch ? mimeMatch[1] : file.type || "image/jpeg";
+        const { base64, mimeType } = await compressImage(result);
         setImageBase64(base64);
         setImageMimeType(mimeType);
         setImageUrl(result);
@@ -170,7 +202,12 @@ export default function Home() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64, imageMimeType, selectedDishes, notes }),
+        body: JSON.stringify({
+          imageBase64,
+          imageMimeType,
+          selectedDishes,
+          notes,
+        }),
       });
 
       const data = await res.json();
@@ -392,7 +429,7 @@ export default function Home() {
                     <img
                       src={imageUrl}
                       alt="Meal"
-                      className="w-full h-64 object-cover rounded-lg"
+                      className="w-full max-h-96 object-contain rounded-lg"
                     />
                     <label className="block text-center text-sm text-green-600 cursor-pointer hover:text-green-700">
                       Change photo
