@@ -8,7 +8,10 @@ import {
   ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 import { Station, Macros, NoteEntry } from "@/types";
-import { generateMealPrompt, formatSelectedDishesForDisplay } from "@/utils/meal";
+import {
+  generateMealPrompt,
+  formatSelectedDishesForDisplay,
+} from "@/utils/meal";
 
 interface SelectedDish {
   stationId: string;
@@ -176,13 +179,18 @@ export default function CaptureView({
 
   return (
     <div className="space-y-6">
-      <button onClick={onBack} className="text-green-600 hover:text-green-700 text-sm">
+      <button
+        onClick={onBack}
+        className="text-green-600 hover:text-green-700 text-sm"
+      >
         ← Back to selection
       </button>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold text-gray-800 mb-4">Take a photo of your plate</h3>
+          <h3 className="font-semibold text-gray-800 mb-4">
+            Take a photo of your plate
+          </h3>
 
           {imageUrl ? (
             <div className="space-y-3">
@@ -255,7 +263,11 @@ export default function CaptureView({
             onClick={handleCopyDescription}
             className="w-full py-3 rounded-lg font-medium bg-gray-800 text-white hover:bg-gray-900 flex items-center justify-center gap-2 cursor-pointer"
           >
-            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            {copied ? (
+              <Check className="w-4 h-4" />
+            ) : (
+              <Copy className="w-4 h-4" />
+            )}
             {copied ? "Copied!" : "Copy Prompt for Gemini"}
           </button>
 
@@ -332,7 +344,7 @@ function MacrosDisplay({
       </h3>
       {parsedNotes.length > 0 && (
         <p className="text-xs text-green-700 mb-2">
-          Models: {parsedNotes.map((n) => n.modelUsed).join(", ")}
+          Models: {[...new Set(parsedNotes.map((n) => n.modelUsed))].join(", ")}
         </p>
       )}
       <div className="grid grid-cols-2 gap-3">
