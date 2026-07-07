@@ -2,6 +2,7 @@ import { Station, DayMenu, Dish } from "@/types";
 import { STATION_IMAGES } from "@/constants/stations";
 
 const BASE_URL = "https://eat.sifted.co";
+const REVALIDATE = 3600;
 
 interface ScheduledElement {
   id: string;
@@ -53,16 +54,22 @@ async function fetchStationMenus(stationId: string): Promise<Station | null> {
   if (!name) return null;
 
   const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-  const today = new Date();
-  const dayOfWeek = today.getDay();
+  const now = new Date();
+  const dayOfWeek = now.getDay();
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + mondayOffset);
+  const monday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + mondayOffset
+  );
 
   const menuPromises = dayNames.map(async (dayName, index) => {
     const date = new Date(monday);
     date.setDate(monday.getDate() + index);
-    const dateStr = date.toISOString().split("T")[0];
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    const dateStr = `${y}-${m}-${d}`;
     const dishes = await fetchDishesForDate(stationId, dateStr);
     if (dishes.length === 0) return null;
     return {
@@ -92,7 +99,8 @@ async function fetchStationMenus(stationId: string): Promise<Station | null> {
 async function fetchStationName(stationId: string): Promise<string | null> {
   try {
     const res = await fetch(
-      `${BASE_URL}/api/accounts/redirect-address?accountId=${stationId}`
+      `${BASE_URL}/api/accounts/redirect-address?accountId=${stationId}`,
+      { next: { revalidate: REVALIDATE } }
     );
     if (!res.ok) return null;
     const json = await res.json();
@@ -101,7 +109,8 @@ async function fetchStationName(stationId: string): Promise<string | null> {
     if (!entropy || !slug) return null;
 
     const acctRes = await fetch(
-      `${BASE_URL}/api/accounts/${encodeURIComponent(entropy)}/${encodeURIComponent(slug)}`
+      `${BASE_URL}/api/accounts/${encodeURIComponent(entropy)}/${encodeURIComponent(slug)}`,
+      { next: { revalidate: REVALIDATE } }
     );
     if (!acctRes.ok) return null;
     const acctJson = await acctRes.json();
@@ -117,7 +126,8 @@ async function fetchDishesForDate(
 ): Promise<Dish[]> {
   try {
     const res = await fetch(
-      `${BASE_URL}/api/accounts/meals?id=${stationId}&date=${dateStr}`
+      `${BASE_URL}/api/accounts/meals?id=${stationId}&date=${dateStr}`,
+      { next: { revalidate: REVALIDATE } }
     );
     if (!res.ok) return [];
     const json: ApiResponse = await res.json();
