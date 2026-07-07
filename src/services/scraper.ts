@@ -1,24 +1,42 @@
 import { Station, DayMenu, Dish } from "@/types";
 import { STATION_IMAGES } from "@/constants/stations";
 
-const BASE_URL = "https://eat.sifted.co/meals";
+const BASE_URL = "https://eat.sifted.co";
 
-// Helper to decode HTML entities
-function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, " ");
+interface ScheduledElement {
+  id: string;
+  name: string;
+  tags: string[];
+  type: string;
+  allergens: string[];
+  ingredients: string;
+}
+
+interface ApiMenu {
+  id: string;
+  name: string;
+  description: string;
+  date: string;
+  brand: { name: string; img: string };
+  serviceLine: { name: string; order: number };
+  menuType: string;
+  scheduledElements: ScheduledElement[];
+}
+
+interface ApiServiceLine {
+  serviceLine: { name: string; order: number };
+  menus: ApiMenu[];
+}
+
+interface ApiResponse {
+  data: ApiServiceLine[];
 }
 
 export async function fetchAllMenus(stationIds: string[]): Promise<Station[]> {
   const results = await Promise.all(
     stationIds.map(async (id) => {
       try {
-        return await fetchMenu(id);
+        return await fetchStationMenus(id);
       } catch (error) {
         console.error(`Failed to fetch menu for ${id}:`, error);
         return null;
@@ -29,162 +47,105 @@ export async function fetchAllMenus(stationIds: string[]): Promise<Station[]> {
   return results.filter((station): station is Station => station !== null);
 }
 
-export async function fetchMenu(stationId: string): Promise<Station | null> {
+async function fetchStationMenus(stationId: string): Promise<Station | null> {
+  const imageUrl = STATION_IMAGES[stationId] || "";
+  const name = await fetchStationName(stationId);
+  if (!name) return null;
+
+  const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + mondayOffset);
+
+  const menuPromises = dayNames.map(async (dayName, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    const dateStr = date.toISOString().split("T")[0];
+    const dishes = await fetchDishesForDate(stationId, dateStr);
+    if (dishes.length === 0) return null;
+    return {
+      day: dayName,
+      date: date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+      dishes,
+    };
+  });
+
+  const menuResults = await Promise.all(menuPromises);
+  const menu = menuResults.filter(
+    (m): m is DayMenu => m !== null
+  );
+
+  return {
+    id: stationId,
+    name,
+    imageUrl,
+    menu,
+  };
+}
+
+async function fetchStationName(stationId: string): Promise<string | null> {
   try {
-    const response = await fetch(`${BASE_URL}/${stationId}`, {
-      method: "GET",
-      headers: {
-        Accept: "text/html",
-      },
-      next: { revalidate: 3600 },
-    });
+    const res = await fetch(
+      `${BASE_URL}/api/accounts/redirect-address?accountId=${stationId}`
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    const entropy = json.data?.entropy;
+    const slug = json.data?.slug;
+    if (!entropy || !slug) return null;
 
-    if (!response.ok) {
-      console.error("Failed to fetch menu:", response.status);
-      return null;
-    }
-
-    const html = await response.text();
-    return parseMenuHtml(html, stationId);
-  } catch (error) {
-    console.error("Error fetching menu:", error);
+    const acctRes = await fetch(
+      `${BASE_URL}/api/accounts/${encodeURIComponent(entropy)}/${encodeURIComponent(slug)}`
+    );
+    if (!acctRes.ok) return null;
+    const acctJson = await acctRes.json();
+    return acctJson.data?.name || null;
+  } catch {
     return null;
   }
 }
 
-function parseMenuHtml(html: string, stationId: string): Station {
-  // Extract station name from "Service for X" - capture multi-word names
-  const stationNameMatch = html.match(/Service for\s+([^<]+)/);
-  const stationName = stationNameMatch
-    ? decodeHtmlEntities(stationNameMatch[1].trim())
-    : `Station ${stationId.slice(0, 8)}`;
-
-  // Use static image URL
-  const imageUrl = STATION_IMAGES[stationId] || "";
-
-  const menu: DayMenu[] = [];
-  const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-
-  // Find the menu-list section
-  const menuListStart = html.indexOf('id="menu-list"');
-  if (menuListStart === -1) {
-    return { id: stationId, name: stationName, imageUrl, menu: [] };
-  }
-
-  const menuSection = html.slice(menuListStart);
-
-  for (const dayName of dayNames) {
-    // Find day in the menu list - pattern: <div id='Monday'>
-    const dayIdPattern = new RegExp(`id='${dayName}'`, "i");
-    const dayMatch = menuSection.match(dayIdPattern);
-
-    if (!dayMatch) continue;
-
-    // Get section around this day
-    const dayStart = dayMatch.index!;
-    const nextDayPattern = new RegExp(
-      `id='(Monday|Tuesday|Wednesday|Thursday|Friday)'`,
-      "i",
+async function fetchDishesForDate(
+  stationId: string,
+  dateStr: string
+): Promise<Dish[]> {
+  try {
+    const res = await fetch(
+      `${BASE_URL}/api/accounts/meals?id=${stationId}&date=${dateStr}`
     );
-    const nextDayMatch = menuSection.slice(dayStart + 10).match(nextDayPattern);
+    if (!res.ok) return [];
+    const json: ApiResponse = await res.json();
+    if (!json.data) return [];
 
-    let dayEnd = menuSection.length;
-    if (nextDayMatch) {
-      dayEnd = dayStart + 10 + nextDayMatch.index!;
-    }
-
-    const daySection = menuSection.slice(dayStart, dayEnd);
-
-    // Extract date - in <p>Mar 16, 2026</p>
-    const dateMatch = daySection.match(/<p[^>]*>Mar \d+, \d{4}<\/p>/);
-    const date = dateMatch
-      ? decodeHtmlEntities(dateMatch[0].replace(/<[^>]+>/g, "").trim())
-      : "";
-
-    // Find all dishes in this day section
     const dishes: Dish[] = [];
+    for (const serviceLine of json.data) {
+      for (const menu of serviceLine.menus) {
+        for (const element of menu.scheduledElements ?? []) {
+          const ingredients = element.ingredients
+            ? element.ingredients
+                .split(",")
+                .map((i) => i.trim())
+                .filter((i) => i.length > 0)
+            : [];
 
-    // Find all h3 headings with dish names
-    const dishRegex = /<h3[^>]*>([^<]+)<\/h3>/g;
-    let dishMatch;
-
-    while ((dishMatch = dishRegex.exec(daySection)) !== null) {
-      const dishName = decodeHtmlEntities(dishMatch[1].trim());
-
-      if (!dishName || dishName.length > 50) continue;
-
-      // Get content after dish name until next h3 or h2 or end
-      const afterDishStart = dishMatch.index! + dishMatch[0].length;
-      
-      // Find the next h3 or h2 tag
-      const nextH3Index = daySection.indexOf("<h3", afterDishStart);
-      const nextH2Index = daySection.indexOf("<h2", afterDishStart);
-      
-      let afterDishEnd = daySection.length;
-      if (nextH3Index !== -1 && nextH3Index < afterDishEnd) afterDishEnd = nextH3Index;
-      if (nextH2Index !== -1 && nextH2Index < afterDishEnd) afterDishEnd = nextH2Index;
-      
-      const afterDish = daySection.slice(afterDishStart, afterDishEnd);
-
-      // Try multiple patterns to find ingredients
-      let ingredientsText = "";
-
-      // Pattern 1: <p class="text-xs text-slate-500">...</p>
-      const p1 = afterDish.match(/<p[^>]*text-slate-500[^>]*>([^<]+)<\/p>/);
-      if (p1) ingredientsText = p1[1];
-
-      // Pattern 2: <p class="text-xs ...">...</p> (any text-xs)
-      if (!ingredientsText) {
-        const p2 = afterDish.match(
-          /<p[^>]*class="[^"]*text-xs[^"]*"[^>]*>([^<]+)<\/p>/,
-        );
-        if (p2) ingredientsText = p2[1];
-      }
-
-      // Pattern 3: Just look for a <p> after the h3 that contains comma-separated text
-      if (!ingredientsText) {
-        const p3 = afterDish.match(/<p[^>]*>([a-z][^<]{10,})<\/p>/);
-        if (p3) ingredientsText = p3[1];
-      }
-
-      let ingredients: string[] = [];
-      const allergens: string[] = [];
-
-      if (ingredientsText) {
-        // Decode entities and split by comma
-        ingredients = decodeHtmlEntities(ingredientsText)
-          .split(",")
-          .map((i) => i.trim())
-          .filter((i) => i.length > 0 && i.length < 40);
-
-        // Check for allergen images in the section
-        const allergenSection = afterDish.slice(0, 300);
-        const allergenMatches = allergenSection.matchAll(/title="([^"]+)"/g);
-        for (const a of allergenMatches) {
-          if (!allergens.includes(a[1])) allergens.push(a[1]);
+          dishes.push({
+            name: element.name,
+            ingredients,
+            allergens: element.allergens ?? [],
+          });
         }
       }
-
-      dishes.push({ name: dishName, ingredients, allergens });
     }
-
-    if (dishes.length > 0) {
-      menu.push({
-        day: dayName,
-        date,
-        dishes,
-      });
-    }
+    return dishes;
+  } catch {
+    return [];
   }
-
-  console.log("Parsed:", stationName, menu.length, "days with dishes");
-
-  return {
-    id: stationId,
-    name: stationName,
-    imageUrl,
-    menu,
-  };
 }
 
 export function getCurrentDayMenu(station: Station): DayMenu | null {
