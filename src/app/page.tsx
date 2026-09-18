@@ -12,15 +12,11 @@ import CaptureView from "@/components/CaptureView";
 
 type View = "select" | "capture";
 
-function pickDefaultMenu(station: Station, todayStr: string): DayMenu | null {
+function getTodayMenu(station: Station, todayStr: string): DayMenu | null {
   if (station.menu.length === 0) return null;
-  // Prefer today even when empty so the header never misleadingly shows
-  // another day (e.g. Monday on a Thursday).
   return (
     station.menu.find((m) => m.dateStr === todayStr) ||
     station.menu.find((m) => m.day === weekdayNameInCafeteria()) ||
-    [...station.menu].reverse().find((m) => m.dishes.length > 0) ||
-    station.menu[station.menu.length - 1] ||
     null
   );
 }
@@ -38,7 +34,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedStationId, setSelectedStationId] = useState<string>("");
-  const [selectedDateStr, setSelectedDateStr] = useState<string>("");
   const [selectedDishes, setSelectedDishes] = useState<
     { stationId: string; stationName: string; name: string; ingredients: string[] }[]
   >([]);
@@ -69,7 +64,6 @@ export default function Home() {
       setStations(stationsWithImages);
       const first = stationsWithImages[0];
       setSelectedStationId(first.id);
-      setSelectedDateStr(todayStr);
     } catch (error) {
       console.error("Error loading menus:", error);
       setLoadError(
@@ -105,15 +99,8 @@ export default function Home() {
   };
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);
-  const defaultMenu = selectedStation
-    ? pickDefaultMenu(selectedStation, todayStr)
-    : null;
-  const effectiveDateStr =
-    selectedDateStr || defaultMenu?.dateStr || todayStr;
   const currentMenu: DayMenu | null = selectedStation
-    ? selectedStation.menu.find((m) => m.dateStr === effectiveDateStr) ||
-      selectedStation.menu.find((m) => m.dateStr === todayStr) ||
-      defaultMenu
+    ? getTodayMenu(selectedStation, todayStr)
     : null;
 
   if (loading) {
@@ -167,32 +154,6 @@ export default function Home() {
               onSelect={setSelectedStationId}
             />
 
-            {selectedStation && selectedStation.menu.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-                {selectedStation.menu.map((m) => {
-                  const isActive =
-                    (m.dateStr || m.day) === (currentMenu?.dateStr || currentMenu?.day);
-                  const isToday = m.dateStr === todayStr;
-                  return (
-                    <button
-                      key={m.dateStr || m.day}
-                      onClick={() =>
-                        setSelectedDateStr(m.dateStr || m.day)
-                      }
-                      className={`px-3 py-1.5 rounded-full text-xs sm:text-sm whitespace-nowrap border transition-colors ${
-                        isActive
-                          ? "bg-gray-800 text-white border-gray-800"
-                          : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                      }`}
-                    >
-                      {m.day.slice(0, 3)}
-                      {isToday ? " •" : ""}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
             {view === "select" && selectedStation && currentMenu && (
               <MenuSelect
                 station={selectedStation}
@@ -209,8 +170,8 @@ export default function Home() {
                   No menu available for {selectedStation.name} right now.
                 </p>
                 <p className="text-gray-500 text-sm mt-1">
-                  Try another day or reload — the cafeteria feed may be
-                  temporarily down.
+                  The cafeteria feed may be temporarily down — try
+                  reloading.
                 </p>
               </div>
             )}

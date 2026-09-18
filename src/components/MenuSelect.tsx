@@ -54,7 +54,7 @@ export default function MenuSelect({
             </p>
             <p className="text-gray-500 text-sm mt-1">
               The cafeteria may be closed or the feed may be temporarily
-              down — try another day.
+              down.
             </p>
           </div>
         ) : (
