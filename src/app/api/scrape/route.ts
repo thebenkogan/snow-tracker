@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { fetchAllMenus } from "@/services/scraper";
 import { STATIONS } from "@/constants/stations";
 
+export const revalidate = 600;
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const stations = await fetchAllMenus(STATIONS.map((s) => s.id));

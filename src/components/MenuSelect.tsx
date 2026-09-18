@@ -40,10 +40,24 @@ export default function MenuSelect({
             <h2 className="text-lg font-semibold text-gray-800">
               {station.name}
             </h2>
-            <span className="text-gray-500 text-sm">{currentMenu.day}</span>
+            <span className="text-gray-500 text-sm">
+              {currentMenu.day}
+              {currentMenu.date ? ` · ${currentMenu.date}` : ""}
+            </span>
           </div>
         </div>
 
+        {currentMenu.dishes.length === 0 ? (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+            <p className="text-gray-700 font-medium">
+              No dishes listed for {currentMenu.day}.
+            </p>
+            <p className="text-gray-500 text-sm mt-1">
+              The cafeteria may be closed or the feed may be temporarily
+              down — try another day.
+            </p>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {currentMenu.dishes.map((dish, idx) => {
             const selected = isSelected(dish.name);
@@ -85,6 +99,7 @@ export default function MenuSelect({
             );
           })}
         </div>
+        )}
       </div>
 
       {selectedDishes.length > 0 && (

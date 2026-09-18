@@ -7,6 +7,7 @@ export interface Dish {
 export interface DayMenu {
   day: string;
   date: string;
+  dateStr: string;
   dishes: Dish[];
 }
 

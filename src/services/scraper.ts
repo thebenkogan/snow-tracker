@@ -1,8 +1,15 @@
 import { Station, DayMenu, Dish } from "@/types";
-import { STATION_IMAGES } from "@/constants/stations";
+import { STATION_IMAGES, STATIONS } from "@/constants/stations";
+import {
+  formatDisplayDate,
+  getCafeteriaTodayStr,
+  getCafeteriaWeekDates,
+} from "@/utils/date";
 
 const BASE_URL = "https://eat.sifted.co";
 const REVALIDATE = 3600;
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 400;
 
 interface ScheduledElement {
   id: string;
@@ -33,6 +40,32 @@ interface ApiResponse {
   data: ApiServiceLine[];
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(
+  url: string,
+  retries: number = MAX_RETRIES,
+): Promise<Response> {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, { next: { revalidate: REVALIDATE } });
+      // Retry transient 5xx; 4xx (bad id/date) won't heal on retry.
+      if (res.status >= 500 && attempt < retries) {
+        await delay(RETRY_DELAY_MS * attempt);
+        continue;
+      }
+      return res;
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) await delay(RETRY_DELAY_MS * attempt);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("fetch failed");
+}
+
 export async function fetchAllMenus(stationIds: string[]): Promise<Station[]> {
   const results = await Promise.all(
     stationIds.map(async (id) => {
@@ -40,53 +73,57 @@ export async function fetchAllMenus(stationIds: string[]): Promise<Station[]> {
         return await fetchStationMenus(id);
       } catch (error) {
         console.error(`Failed to fetch menu for ${id}:`, error);
-        return null;
+        return fallbackStation(id);
       }
-    })
+    }),
   );
 
   return results.filter((station): station is Station => station !== null);
 }
 
+function fallbackStation(stationId: string): Station | null {
+  const config = STATIONS.find((s) => s.id === stationId);
+  if (!config) return null;
+  const week = getCafeteriaWeekDates();
+  return {
+    id: stationId,
+    name: config.name,
+    imageUrl: STATION_IMAGES[stationId] || "",
+    menu: week.map(({ dayName, dateStr }) => ({
+      day: dayName,
+      date: formatDisplayDate(dateStr),
+      dateStr,
+      dishes: [],
+    })),
+  };
+}
+
 async function fetchStationMenus(stationId: string): Promise<Station | null> {
   const imageUrl = STATION_IMAGES[stationId] || "";
-  const name = await fetchStationName(stationId);
+  // Never drop a known station just because the name lookup flaked —
+  // fall back to the configured name so the station still renders
+  // (possibly with empty menus) instead of vanishing entirely.
+  const configName = STATIONS.find((s) => s.id === stationId)?.name;
+  const name = (await fetchStationName(stationId)) || configName;
   if (!name) return null;
 
-  const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + mondayOffset
-  );
+  const week = getCafeteriaWeekDates();
 
-  const menuPromises = dayNames.map(async (dayName, index) => {
-    const date = new Date(monday);
-    date.setDate(monday.getDate() + index);
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const d = String(date.getDate()).padStart(2, "0");
-    const dateStr = `${y}-${m}-${d}`;
+  const menuPromises = week.map(async ({ dayName, dateStr }) => {
     const dishes = await fetchDishesForDate(stationId, dateStr);
-    if (dishes.length === 0) return null;
-    return {
+    // Keep every weekday, even when empty, so day matching on the
+    // client resolves to the correct day instead of falling back to
+    // Monday and so the UI can show an explicit empty state.
+    const menu: DayMenu = {
       day: dayName,
-      date: date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
+      date: formatDisplayDate(dateStr),
+      dateStr,
       dishes,
     };
+    return menu;
   });
 
-  const menuResults = await Promise.all(menuPromises);
-  const menu = menuResults.filter(
-    (m): m is DayMenu => m !== null
-  );
+  const menu = await Promise.all(menuPromises);
 
   return {
     id: stationId,
@@ -98,9 +135,8 @@ async function fetchStationMenus(stationId: string): Promise<Station | null> {
 
 async function fetchStationName(stationId: string): Promise<string | null> {
   try {
-    const res = await fetch(
+    const res = await fetchWithRetry(
       `${BASE_URL}/api/accounts/redirect-address?accountId=${stationId}`,
-      { next: { revalidate: REVALIDATE } }
     );
     if (!res.ok) return null;
     const json = await res.json();
@@ -108,9 +144,8 @@ async function fetchStationName(stationId: string): Promise<string | null> {
     const slug = json.data?.slug;
     if (!entropy || !slug) return null;
 
-    const acctRes = await fetch(
+    const acctRes = await fetchWithRetry(
       `${BASE_URL}/api/accounts/${encodeURIComponent(entropy)}/${encodeURIComponent(slug)}`,
-      { next: { revalidate: REVALIDATE } }
     );
     if (!acctRes.ok) return null;
     const acctJson = await acctRes.json();
@@ -122,12 +157,11 @@ async function fetchStationName(stationId: string): Promise<string | null> {
 
 async function fetchDishesForDate(
   stationId: string,
-  dateStr: string
+  dateStr: string,
 ): Promise<Dish[]> {
   try {
-    const res = await fetch(
+    const res = await fetchWithRetry(
       `${BASE_URL}/api/accounts/meals?id=${stationId}&date=${dateStr}`,
-      { next: { revalidate: REVALIDATE } }
     );
     if (!res.ok) return [];
     const json: ApiResponse = await res.json();
@@ -158,17 +192,38 @@ async function fetchDishesForDate(
   }
 }
 
-export function getCurrentDayMenu(station: Station): DayMenu | null {
-  const days = [
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-  ];
-  const today = days[new Date().getDay()];
+export function getCurrentDayMenu(
+  station: Station,
+  todayStr: string = getCafeteriaTodayStr(),
+): DayMenu | null {
+  if (station.menu.length === 0) return null;
 
-  return station.menu.find((m) => m.day === today) || station.menu[0] || null;
+  // Exact date match first — this is what keeps Thursday on Thursday
+  // even when other days are empty.
+  const today = station.menu.find((m) => m.dateStr === todayStr);
+  if (today) return today;
+
+  // Legacy payloads without dateStr: match by weekday name.
+  if (!station.menu.some((m) => m.dateStr)) {
+    const weekday = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Los_Angeles",
+      weekday: "long",
+    }).format(new Date());
+    return (
+      station.menu.find((m) => m.day === weekday) ||
+      [...station.menu].reverse().find((m) => m.dishes.length > 0) ||
+      null
+    );
+  }
+
+  // Today isn't in this week's Mon–Fri (weekend/holiday): show the most
+  // recent day with dishes rather than misleadingly jumping to Monday.
+  const past = station.menu
+    .filter((m) => m.dateStr <= todayStr && m.dishes.length > 0)
+    .sort((a, b) => b.dateStr.localeCompare(a.dateStr));
+  if (past.length > 0) return past[0];
+
+  return (
+    [...station.menu].reverse().find((m) => m.dishes.length > 0) || null
+  );
 }
