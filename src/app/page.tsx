@@ -5,28 +5,13 @@ import { Station, DayMenu } from "@/types";
 import { Loader2 } from "lucide-react";
 import { STATION_IMAGES } from "@/constants/stations";
 import { getCafeteriaTodayStr } from "@/utils/date";
+import { getCurrentDayMenu } from "@/utils/menu";
 import Header from "@/components/Header";
 import StationSelector from "@/components/StationSelector";
 import MenuSelect from "@/components/MenuSelect";
 import CaptureView from "@/components/CaptureView";
 
 type View = "select" | "capture";
-
-function getTodayMenu(station: Station, todayStr: string): DayMenu | null {
-  if (station.menu.length === 0) return null;
-  return (
-    station.menu.find((m) => m.dateStr === todayStr) ||
-    station.menu.find((m) => m.day === weekdayNameInCafeteria()) ||
-    null
-  );
-}
-
-function weekdayNameInCafeteria(): string {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    weekday: "long",
-  }).format(new Date());
-}
 
 export default function Home() {
   const [view, setView] = useState<View>("select");
@@ -100,7 +85,7 @@ export default function Home() {
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);
   const currentMenu: DayMenu | null = selectedStation
-    ? getTodayMenu(selectedStation, todayStr)
+    ? getCurrentDayMenu(selectedStation, todayStr)
     : null;
 
   if (loading) {
