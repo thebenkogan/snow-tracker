@@ -46,7 +46,7 @@ export default function CaptureView({
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzingVerb, setAnalyzingVerb] = useState("Analyzing");
   const [macros, setMacros] = useState<Macros | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [notes, setNotes] = useState("");
   const [noteIndex, setNoteIndex] = useState(0);
   const [analysisFailed, setAnalysisFailed] = useState(false);
@@ -127,11 +127,29 @@ export default function CaptureView({
     }
   };
 
-  const handleCopyDescription = () => {
+  const handleCopyDescription = async () => {
     const description = generateMealPrompt(selectedDishes, notes);
-    navigator.clipboard.writeText(description);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopyStatus("idle");
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(description);
+          setCopyStatus("copied");
+        } catch {
+          copyWithExecCommand(description);
+          setCopyStatus("copied");
+        }
+      } else {
+        copyWithExecCommand(description);
+        setCopyStatus("copied");
+      }
+    } catch (error) {
+      console.error("Could not copy prompt:", error);
+      setCopyStatus("failed");
+    }
+
+    setTimeout(() => setCopyStatus("idle"), 2000);
   };
 
   const handleAnalyze = async () => {
@@ -270,12 +288,16 @@ export default function CaptureView({
             onClick={handleCopyDescription}
             className="w-full py-3 rounded-lg font-medium bg-gray-800 text-white hover:bg-gray-900 flex items-center justify-center gap-2 cursor-pointer"
           >
-            {copied ? (
+            {copyStatus === "copied" ? (
               <Check className="w-4 h-4" />
             ) : (
               <Copy className="w-4 h-4" />
             )}
-            {copied ? "Copied!" : "Copy Prompt"}
+            {copyStatus === "copied"
+              ? "Copied!"
+              : copyStatus === "failed"
+                ? "Copy failed — try again"
+                : "Copy Prompt"}
           </button>
 
           {macros ? (
@@ -324,6 +346,24 @@ export default function CaptureView({
       </div>
     </div>
   );
+}
+
+function copyWithExecCommand(text: string) {
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "");
+  textArea.style.position = "fixed";
+  textArea.style.opacity = "0";
+  document.body.appendChild(textArea);
+  textArea.select();
+
+  try {
+    if (!document.execCommand("copy")) {
+      throw new Error("Clipboard copy command was rejected");
+    }
+  } finally {
+    textArea.remove();
+  }
 }
 
 function MacrosDisplay({
