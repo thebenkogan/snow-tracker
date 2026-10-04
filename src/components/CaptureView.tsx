@@ -7,7 +7,14 @@ import {
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
 } from "lucide-react";
-import { Station, Macros, NoteEntry } from "@/types";
+import {
+  Station,
+  Macros,
+  NoteEntry,
+  impliedDensity,
+  densityFlag,
+  DENSITY_RANGE,
+} from "@/types";
 import {
   generateMealPrompt,
   formatSelectedDishesForDisplay,
@@ -268,7 +275,7 @@ export default function CaptureView({
             ) : (
               <Copy className="w-4 h-4" />
             )}
-            {copied ? "Copied!" : "Copy Prompt for Gemini"}
+            {copied ? "Copied!" : "Copy Prompt"}
           </button>
 
           {macros ? (
@@ -333,20 +340,20 @@ function MacrosDisplay({
   currentParsedNote: NoteEntry | null;
 }) {
   const noteCount = parsedNotes.length;
+  const density = impliedDensity(macros);
+  const densityWarning = densityFlag(macros);
 
   return (
     <div className="bg-green-50 rounded-lg p-4">
-      <h3 className="font-bold text-green-800 mb-3">
-        Estimated Macros
-        <span className="text-xs font-normal text-green-600 ml-2">
-          (avg of {macros.runCount} runs)
-        </span>
-      </h3>
+      <div className="flex items-baseline justify-between mb-3">
+        <h3 className="font-bold text-green-800">Estimated Macros</h3>
+      </div>
       {parsedNotes.length > 0 && (
         <p className="text-xs text-green-700 mb-2">
           Models: {[...new Set(parsedNotes.map((n) => n.modelUsed))].join(", ")}
         </p>
       )}
+
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white p-3 rounded-lg text-center">
           <p className="text-2xl font-bold text-gray-800">{macros.calories}</p>
@@ -365,29 +372,77 @@ function MacrosDisplay({
           <p className="text-xs text-gray-500">Fat</p>
         </div>
       </div>
-      {macros.notes && macros.runCount > 1 && (
+
+      {/* Portion weight: the falsifiable number. If the grams look wrong, the macros are wrong. */}
+      {macros.totalWeightG ? (
+        <div className="mt-3 bg-white p-3 rounded-lg">
+          <div className="flex items-baseline justify-between">
+            <span className="text-xs text-gray-500">Estimated portion weight</span>
+            <span className="text-lg font-bold text-gray-800">
+              {macros.totalWeightG}g
+            </span>
+          </div>
+          {density !== null && (
+            <p className="text-xs text-gray-500 mt-1">
+              {Math.round(density)} kcal per 100g
+              {density < DENSITY_RANGE.min || density > DENSITY_RANGE.max ? (
+                <span className="text-amber-700"> · outside the usual {DENSITY_RANGE.min}-{DENSITY_RANGE.max} range</span>
+              ) : null}
+            </p>
+          )}
+          {macros.spread?.weight != null && macros.spread.weight > 0 && (
+            <p className="text-xs text-gray-500 mt-1">
+              Models disagreed by {macros.spread.weight}g on the weight
+            </p>
+          )}
+        </div>
+      ) : null}
+
+      {densityWarning && (
+        <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2 rounded">
+          {densityWarning}
+        </p>
+      )}
+
+      {macros.lowConfidence && (
+        <div className="mt-2 bg-amber-50 border border-amber-200 p-2 rounded">
+          <p className="text-xs text-amber-800 font-semibold">
+            Low confidence — the models disagreed by {macros.spread?.calories ?? 0} kcal
+          </p>
+          <p className="text-xs text-amber-700 mt-0.5">
+            Portion size is the hard part here. Consider a second photo with the plate rim and
+            some cutlery visible.
+          </p>
+        </div>
+      )}
+
+      {noteCount > 0 && (
         <div className="mt-3">
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs text-green-700">Notes</span>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() =>
-                  setNoteIndex((prev) => (prev > 0 ? prev - 1 : noteCount - 1))
-                }
-                className="p-1 rounded hover:bg-green-100"
-              >
-                <ChevronLeft className="w-4 h-4 text-green-700" />
-              </button>
-              <span className="text-xs text-green-600">
-                {noteIndex + 1}/{noteCount}
-              </span>
-              <button
-                onClick={() => setNoteIndex((prev) => (prev + 1) % noteCount)}
-                className="p-1 rounded hover:bg-green-100"
-              >
-                <ChevronRightIcon className="w-4 h-4 text-green-700" />
-              </button>
-            </div>
+            {noteCount > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() =>
+                    setNoteIndex((prev) => (prev > 0 ? prev - 1 : noteCount - 1))
+                  }
+                  className="p-1 rounded hover:bg-green-100"
+                  aria-label="Previous note"
+                >
+                  <ChevronLeft className="w-4 h-4 text-green-700" />
+                </button>
+                <span className="text-xs text-green-600">
+                  {noteIndex + 1}/{noteCount}
+                </span>
+                <button
+                  onClick={() => setNoteIndex((prev) => (prev + 1) % noteCount)}
+                  className="p-1 rounded hover:bg-green-100"
+                  aria-label="Next note"
+                >
+                  <ChevronRightIcon className="w-4 h-4 text-green-700" />
+                </button>
+              </div>
+            )}
           </div>
           <p className="text-sm text-green-800 bg-white p-2 rounded">
             {currentParsedNote?.note}
@@ -396,17 +451,6 @@ function MacrosDisplay({
                 ({currentParsedNote.modelUsed})
               </span>
             )}
-          </p>
-        </div>
-      )}
-      {parsedNotes.length === 1 && (
-        <div className="mt-3">
-          <span className="text-xs text-green-700">Notes</span>
-          <p className="text-sm text-green-800 bg-white p-2 rounded">
-            {parsedNotes[0].note}
-            <span className="block text-xs text-green-600 mt-1">
-              ({parsedNotes[0].modelUsed})
-            </span>
           </p>
         </div>
       )}

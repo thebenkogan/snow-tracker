@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { analyzeMealWithGemini } from "@/services/gemini";
+import { analyzeMeal } from "@/services/openrouter";
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const macros = await analyzeMealWithGemini(
+    const macros = await analyzeMeal(
       imageBase64,
       imageMimeType,
       selectedDishes,

@@ -21,10 +21,6 @@ export default function MenuSelect({
       (d) => d.stationId === station.id && d.name === dishName,
     );
 
-  const selectedCount = selectedDishes.filter(
-    (d) => d.stationId === station.id,
-  ).length;
-
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-lg shadow p-4">
